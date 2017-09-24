@@ -1,0 +1,105 @@
+#include "SpiceUsr.h"
+
+#include <fstream>
+#include <unistd.h>
+#include <iostream>
+#include <iomanip>
+#include <cstdlib>
+#include "../AstridConstants.hpp"
+
+#include <sys/time.h>
+typedef unsigned long long timestamp_t;
+
+static timestamp_t get_timestamp () {
+  struct timeval now;
+  gettimeofday (&now, NULL);
+  return  now.tv_usec + (timestamp_t)now.tv_sec * 1000000;
+}
+
+using namespace std;
+
+//SpiceChar* prompt_c ( ConstSpiceChar* prmptStr, SpiceInt lenout, SpiceChar* buffer   );
+
+
+// resources folder containing ephemeredes and other data
+const string RES = "resources/";
+// folder containing ephemeredes (positions of bodies)
+const string EPH = "ephemerides/";
+// ephemeredes kernel (file)
+const string PLANETS_EPH_FILE = "de432s.bsp";
+// leap second kernel (file)
+const string LSK_FILE = "naif0012.tls";
+
+// max number of object ids for spice to load
+const SpiceInt MAXOBJ = 1000; 
+
+string eph_path;
+string lsk_path;
+
+void init() {
+  AstInit();
+  eph_path = AST_ROOT + RES + EPH + PLANETS_EPH_FILE;
+  lsk_path = AST_ROOT + RES + LSK_FILE;
+}
+
+int main(int argc, char** argv, char** penv) {
+  SPICEINT_CELL ( ids, MAXOBJ );
+
+  init();
+  cout << "ephemerides file: " << eph_path << endl;
+  cout << "leap second file: " << lsk_path << endl;
+  const int nTests = 10;
+  
+  timestamp_t t1 = get_timestamp();
+
+  for (int i = nTests; i > 0; i--) {
+    //furnsh_c(eph_path.c_str());
+    //unload_c(eph_path.c_str());
+  }
+  furnsh_c(eph_path.c_str());
+  cout << "Time to load and unload " << nTests << " times: " << (get_timestamp() - t1) << " us" << endl;
+
+  //cout << "not yet loaded files" << endl;
+  //sleep(10);
+
+  furnsh_c(lsk_path.c_str());
+  furnsh_c(eph_path.c_str());
+
+  //cout << "Loaded files" << endl;
+  //sleep(10);
+
+
+  ConstSpiceChar* targ = static_cast<ConstSpiceChar*>("MOON");
+  ConstSpiceChar* obs = static_cast<ConstSpiceChar*>("EARTH");
+  ConstSpiceChar* abcorr = static_cast<ConstSpiceChar*>("NONE");
+  ConstSpiceChar* ref = static_cast<ConstSpiceChar*>("J2000");
+
+  SpiceDouble res[6];
+  SpiceDouble lt;
+
+  ofstream dump;
+  dump.open("eph_dump.txt", ios::app);
+  dump << "ephemeris for the moon wrt earth, with lsk\n\n";
+
+  t1 = get_timestamp();
+  SpiceDouble epoch = 0;
+  for (int i = 0; i < nTests; i++) {
+    spkezr_c(targ, epoch, ref, abcorr, obs, res, &lt);
+    epoch += 1000000;
+    if (epoch > 100000000)
+      epoch = 0;
+    dump << "Time: " << epoch << endl;
+    dump << "Pos: " << setprecision(10) << fixed << res[0] << " " << res[1] << " " << res[2] << endl;
+    dump << "Vel: " << setprecision(10) << fixed << res[3] << " " << res[4] << " " << res[5] << endl;
+  } 
+  dump.close();
+  cout << "Time to get moon state " << nTests << " times: " << (get_timestamp() - t1) << " us" << endl;
+
+  cout << "finished getting moon state" << endl;
+  //sleep(10);
+
+  unload_c(eph_path.c_str());
+  unload_c(lsk_path.c_str());
+  cout << "unloaded files" << endl;
+  //sleep(10);
+}

@@ -1,3 +1,11 @@
 # ingnore practice directory
 
 practice/
+cspice/
+build/
+resources/
+
+# ignore vim temporary and swap files
+*.swp
+*~
+*/swo
